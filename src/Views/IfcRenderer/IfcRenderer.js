@@ -16,9 +16,12 @@ import SpatialStructure from './Components/SpatialStructure/SpatialStructure';
 import Properties from './Components/Properties/Properties';
 import DraggableCard from './Components/DraggableCard/DraggableCard';
 import { IFCSPACE, IFCSTAIR, IFCCOLUMN, IFCWALLSTANDARDCASE, IFCWALL, IFCSLAB, IFCOPENINGELEMENT } from 'web-ifc';
+import { exportDXF } from './utils/dxf';
 
 import {
-  Color
+  Color,
+  LineBasicMaterial,
+  MeshBasicMaterial
 } from 'three';
 
 
@@ -68,6 +71,7 @@ const IfcRenderer = () => {
   const [showSpatialStructure, setShowSpatialStructure] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
   const [isLoading, setLoading] = useState(false)
+  const [percentageLoading, setPercentageLoading] = useState(false)
 
   const [state, setState] = useState({
     bcfDialogOpen: false,
@@ -78,18 +82,43 @@ const IfcRenderer = () => {
   });
 
   useEffect(() => {
+    async function createFill(viewer, fill) {
+      const wallsStandard = await viewer.IFC.loader.ifcManager.getAllItemsOfType(0, IFCWALLSTANDARDCASE, false);
+      const walls = await viewer.IFC.loader.ifcManager.getAllItemsOfType(0, IFCWALL, false);
+      const stairs = await viewer.IFC.loader.ifcManager.getAllItemsOfType(0, IFCSTAIR, false);
+      const columns = await viewer.IFC.loader.ifcManager.getAllItemsOfType(0, IFCCOLUMN, false);
+      const slabs = await viewer.IFC.loader.ifcManager.getAllItemsOfType(0, IFCSLAB, false);
+      const ids = [...walls, ...wallsStandard, ...columns, ...stairs, ...slabs];
+      fill = viewer.fills.create('example', 0, ids, new MeshBasicMaterial({ color: 0x888888 }));
+      fill.renderOrder = 2;
+      if (fill) {
+        fill.position.y += 0.01;
+      }
+      // fill.visible = false;
+    }
+
+    async function goToFirstFloor() {
+      await viewer.plans.computeAllPlanViews(0);
+      const firstFloor = viewer.plans.getAll()[0];
+      await viewer.plans.goTo(firstFloor);
+    }
+
     async function init() {
       const container = document.getElementById('viewer-container');
       const newViewer = new IfcViewerAPI({ container, backgroundColor: new Color(0xffffff) });
-      newViewer.IFC.applyWebIfcConfig({ COORDINATE_TO_ORIGIN: true, USE_FAST_BOOLS: false });
       // newViewer.addAxes();p
       // newViewer.addGrid();
-      newViewer.IFC.setWasmPath('../../');
+      newViewer.IFC.setWasmPath('files/');
+      newViewer.IFC.applyWebIfcConfig({ COORDINATE_TO_ORIGIN: true, USE_FAST_BOOLS: false });
+      newViewer.IFC.loader.ifcManager.useWebWorkers(true, 'files/IFCWorker.js');
+
+
       let dimensionsActive = false;
 
-      const handleKeyDown = (event) => {
+      let fill;
+      const handleKeyDown = async (event) => {
+        // DIMENSIONS
         if (event.code === 'KeyP') {
-          console.log('KeyZ')
           dimensionsActive = !dimensionsActive;
           newViewer.dimensions.active = dimensionsActive;
           newViewer.dimensions.previewActive = dimensionsActive;
@@ -101,14 +130,45 @@ const IfcRenderer = () => {
         if (event.code === 'KeyL') {
           newViewer.dimensions.create();
         }
+        if (event.code === 'KeyC') {
+          newViewer.dimensions.cancelDrawing();
+        }
         if (event.code === 'KeyG') {
-          console.log('KeyG')
           newViewer.clipper.createPlane();
         }
         if (event.code === 'KeyT') {
           newViewer.dimensions.deleteAll();
           newViewer.clipper.deletePlane();
           newViewer.IFC.unpickIfcItems();
+        }
+
+        // VIEW
+        if (event.code === 'KeyO') {
+          newViewer.context.getIfcCamera().toggleProjection();
+        }
+        if (event.code === 'KeyR') {
+          newViewer.context.renderer.usePostproduction = !newViewer.context.renderer.usePostproduction;
+        }
+
+
+        // DRAWINGS
+        if (event.code === 'KeyD') {
+          exportDXF();
+          // const scene = viewer.context.getScene();
+          // fillSection(scene);
+        }
+        if (event.code === 'KeyF') {
+          fill.visible = true;
+        }
+        if (event.code === 'KeyB') {
+          await createFill(newViewer, fill);
+          // await goToFirstFloor();
+          // viewer.edges.toggle("01");
+        }
+        if (event.code === 'KeyE') {
+          newViewer.plans.exitPlanView(true);
+          newViewer.edges.toggle("01");
+          fill.visible = false;
         }
       };
 
@@ -124,10 +184,26 @@ const IfcRenderer = () => {
   const onDrop = async (files) => {
     if (files && viewer) {
       setLoading(true);
+
+      viewer.IFC.loader.ifcManager.setOnProgress((event) => {
+        const percentage = Math.floor((event.loaded * 100) / event.total);
+        setPercentageLoading(percentage);
+        console.log('POURCENTAGE', percentage)
+        //progressText.innerText = `Loaded ${percentage}%`;
+      });
+
       // setViewer(null);
-      await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
+      // await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
 
+      viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
+        [IFCSPACE]: false,
+        [IFCOPENINGELEMENT]: false
+      });
 
+      const model = await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
+      model.material.forEach(mat => mat.side = 2);
+
+      viewer.edges.create("01", 0, new LineBasicMaterial({ color: 0x000000 }), new MeshBasicMaterial({ color: 0xffffff, side: 2 }));
       // const modelID = await viewer.IFC.getModelID();
       const spatialStructure = await viewer.IFC.getSpatialStructure(0);
       setSpatialStructure(spatialStructure);
@@ -219,7 +295,7 @@ const IfcRenderer = () => {
     setShowSpatialStructure(!showSpatialStructure);
   };
 
-  const handleShowProperties = () => {
+  const handleShowProperties = async () => {
     setShowProperties(!showProperties);
   };
 
@@ -311,6 +387,7 @@ const IfcRenderer = () => {
         open={isLoading}
       >
         <CircularProgress color='inherit' />
+        {`${percentageLoading} %`}
       </Backdrop>
 
     </>
