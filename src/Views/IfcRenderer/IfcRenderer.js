@@ -16,7 +16,7 @@ import SpatialStructure from './Components/SpatialStructure/SpatialStructure';
 import Properties from './Components/Properties/Properties';
 import DraggableCard from './Components/DraggableCard/DraggableCard';
 import { IFCSPACE, IFCSTAIR, IFCCOLUMN, IFCWALLSTANDARDCASE, IFCWALL, IFCSLAB, IFCOPENINGELEMENT } from 'web-ifc';
-
+import { exportDXF } from './Utils/dxf';
 import {
   Color
 } from 'three';
@@ -68,7 +68,7 @@ const IfcRenderer = () => {
   const [showSpatialStructure, setShowSpatialStructure] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
   const [isLoading, setLoading] = useState(false);
-  const [percentageLoading, setPersentatgeLoading] = useState(0)
+  const [percentageLoading, setPercentageLoading] = useState(0);
 
   const [state, setState] = useState({
     bcfDialogOpen: false,
@@ -82,14 +82,17 @@ const IfcRenderer = () => {
     async function init() {
       const container = document.getElementById('viewer-container');
       const newViewer = new IfcViewerAPI({ container, backgroundColor: new Color(0xffffff) });
-      newViewer.IFC.applyWebIfcConfig({
-        COORDINATE_TO_ORIGIN: true,
-        USE_FAST_BOOLS: false
-      });
       // newViewer.addAxes();
       // newViewer.addGrid();
       // newViewer.IFC.setWasmPath('../../');
       newViewer.IFC.setWasmPath('../../files/');
+      newViewer.IFC.applyWebIfcConfig({
+        COORDINATE_TO_ORIGIN: true,
+        USE_FAST_BOOLS: false
+      });
+      newViewer.IFC.loader.ifcManager.useWebWorkers(true, '../../files/IFCWorker.js');
+
+
       let dimensionsActive = false;
 
       const handleKeyDown = (event) => {
@@ -115,6 +118,12 @@ const IfcRenderer = () => {
           newViewer.clipper.deletePlane();
           newViewer.IFC.unpickIfcItems();
         }
+
+        if (event.code === 'KeyD') {
+          exportDXF();
+          // const scene = viewer.context.getScene();
+          // fillSection(scene);
+        }
       };
 
       window.onkeydown = handleKeyDown;
@@ -131,18 +140,19 @@ const IfcRenderer = () => {
       setLoading(true);
       // setViewer(null);
 
-      viewer.IFC.loader.ifcManager.setOnProgress((event) => {
+      await viewer.IFC.loader.ifcManager.setOnProgress((event) => {
         const percentage = Math.floor((event.loaded * 100) / event.total);
-        setPersentatgeLoading(`Loaded ${percentage}%`);
+        console.log('percentage', percentage)
+        setPercentageLoading(percentage);
       });
 
-      viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
+      await viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
         [IFCSPACE]: true,
         [IFCOPENINGELEMENT]: false
       });
 
-      await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
-
+      const model = await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
+      model.material.forEach(mat => mat.side = 2);
 
       // const modelID = await viewer.IFC.getModelID();
       const spatialStructure = await viewer.IFC.getSpatialStructure(0);
@@ -327,7 +337,7 @@ const IfcRenderer = () => {
         open={isLoading}
       >
         <CircularProgress color='inherit' />
-        {percentageLoading}
+        {`${percentageLoading} %`}
       </Backdrop>
 
     </>
