@@ -81,7 +81,10 @@ const IfcRenderer = () => {
     async function init() {
       const container = document.getElementById('viewer-container');
       const newViewer = new IfcViewerAPI({ container, backgroundColor: new Color(0xffffff) });
-      newViewer.IFC.applyWebIfcConfig({ COORDINATE_TO_ORIGIN: true, USE_FAST_BOOLS: false });
+      newViewer.IFC.applyWebIfcConfig({
+        COORDINATE_TO_ORIGIN: true,
+        USE_FAST_BOOLS: false
+      });
       // newViewer.addAxes();p
       // newViewer.addGrid();
       newViewer.IFC.setWasmPath('../../');
