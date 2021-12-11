@@ -87,7 +87,8 @@ const IfcRenderer = () => {
       });
       // newViewer.addAxes();p
       // newViewer.addGrid();
-      newViewer.IFC.setWasmPath('../../');
+      // newViewer.IFC.setWasmPath('../../');
+      newViewer.IFC.setWasmPath('files/');
       let dimensionsActive = false;
 
       const handleKeyDown = (event) => {
