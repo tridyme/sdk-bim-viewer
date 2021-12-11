@@ -67,7 +67,8 @@ const IfcRenderer = () => {
   const [element, setElement] = useState(null);
   const [showSpatialStructure, setShowSpatialStructure] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
-  const [isLoading, setLoading] = useState(false)
+  const [isLoading, setLoading] = useState(false);
+  const [percentageLoading, setPersentatgeLoading] = useState(0)
 
   const [state, setState] = useState({
     bcfDialogOpen: false,
@@ -85,10 +86,10 @@ const IfcRenderer = () => {
         COORDINATE_TO_ORIGIN: true,
         USE_FAST_BOOLS: false
       });
-      // newViewer.addAxes();p
+      // newViewer.addAxes();
       // newViewer.addGrid();
       // newViewer.IFC.setWasmPath('../../');
-      newViewer.IFC.setWasmPath('files/');
+      newViewer.IFC.setWasmPath('../../files/');
       let dimensionsActive = false;
 
       const handleKeyDown = (event) => {
@@ -129,6 +130,17 @@ const IfcRenderer = () => {
     if (files && viewer) {
       setLoading(true);
       // setViewer(null);
+
+      viewer.IFC.loader.ifcManager.setOnProgress((event) => {
+        const percentage = Math.floor((event.loaded * 100) / event.total);
+        setPersentatgeLoading(`Loaded ${percentage}%`);
+      });
+
+      viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
+        [IFCSPACE]: true,
+        [IFCOPENINGELEMENT]: false
+      });
+
       await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
 
 
@@ -315,6 +327,7 @@ const IfcRenderer = () => {
         open={isLoading}
       >
         <CircularProgress color='inherit' />
+        {percentageLoading}
       </Backdrop>
 
     </>
