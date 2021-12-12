@@ -12,6 +12,7 @@ import FolderOpenOutlinedIcon from '@material-ui/icons/FolderOpenOutlined';
 import CropIcon from '@material-ui/icons/Crop';
 import AccountTreeIcon from '@material-ui/icons/AccountTree';
 import DescriptionIcon from '@material-ui/icons/Description';
+import StraightenIcon from '@material-ui/icons/Straighten';
 import SpatialStructure from './Components/SpatialStructure/SpatialStructure';
 import Properties from './Components/Properties/Properties';
 import DraggableCard from './Components/DraggableCard/DraggableCard';
@@ -65,10 +66,12 @@ const IfcRenderer = () => {
   const [transformControls, setTransformControls] = useState(null);
   const [spatialStructure, setSpatialStructure] = useState(null);
   const [element, setElement] = useState(null);
+  const [showMeasure, setShowMeasure] = useState(true);
   const [showSpatialStructure, setShowSpatialStructure] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
   const [isLoading, setLoading] = useState(false);
   const [percentageLoading, setPercentageLoading] = useState(0);
+
 
   const [state, setState] = useState({
     bcfDialogOpen: false,
@@ -86,10 +89,10 @@ const IfcRenderer = () => {
       // newViewer.addGrid();
       // newViewer.IFC.setWasmPath('../../');
       newViewer.IFC.setWasmPath('../../files/');
-      newViewer.IFC.applyWebIfcConfig({
-        COORDINATE_TO_ORIGIN: true,
-        USE_FAST_BOOLS: false
-      });
+      // newViewer.IFC.applyWebIfcConfig({
+      //   COORDINATE_TO_ORIGIN: true,
+      //   USE_FAST_BOOLS: false
+      // });
       newViewer.IFC.loader.ifcManager.useWebWorkers(true, '../../files/IFCWorker.js');
 
 
@@ -119,11 +122,11 @@ const IfcRenderer = () => {
           newViewer.IFC.unpickIfcItems();
         }
 
-        if (event.code === 'KeyD') {
-          exportDXF();
-          // const scene = viewer.context.getScene();
-          // fillSection(scene);
-        }
+        // if (event.code === 'KeyD') {
+        //   exportDXF();
+        //   // const scene = viewer.context.getScene();
+        //   // fillSection(scene);
+        // }
       };
 
       window.onkeydown = handleKeyDown;
@@ -140,13 +143,13 @@ const IfcRenderer = () => {
       setLoading(true);
       // setViewer(null);
 
-      await viewer.IFC.loader.ifcManager.setOnProgress((event) => {
+      viewer.IFC.loader.ifcManager.setOnProgress((event) => {
         const percentage = Math.floor((event.loaded * 100) / event.total);
         console.log('percentage', percentage)
         setPercentageLoading(percentage);
       });
 
-      await viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
+      viewer.IFC.loader.ifcManager.parser.setupOptionalCategories({
         [IFCSPACE]: true,
         [IFCOPENINGELEMENT]: false
       });
@@ -154,8 +157,9 @@ const IfcRenderer = () => {
       const model = await viewer.IFC.loadIfc(files[0], true, ifcOnLoadError);
       model.material.forEach(mat => mat.side = 2);
 
-      // const modelID = await viewer.IFC.getModelID();
-      const spatialStructure = await viewer.IFC.getSpatialStructure(0);
+      const modelID = await viewer.IFC.getModelID();
+      console.log('modelID ', modelID)
+      const spatialStructure = await viewer.IFC.getSpatialStructure(0, true);
       setSpatialStructure(spatialStructure);
       console.log('spatialStructure', spatialStructure);
       setLoading(false);
@@ -233,13 +237,48 @@ const IfcRenderer = () => {
     }
   }
 
+  const handleClickOpen = () => {
+    dropzoneRef.current.open();
+  };
+
   const handleToggleClipping = () => {
     viewer.clipper.active = !viewer.clipper.active;
   };
 
-  const handleClickOpen = () => {
-    dropzoneRef.current.open();
-  };
+
+  const handleMeasure = () => {
+    setShowMeasure(!showMeasure);
+    let dimensionsActive = false;
+    console.log('showMeasure', showMeasure)
+    if (showMeasure) {
+      dimensionsActive = true;
+      viewer.dimensions.active = dimensionsActive;
+      viewer.dimensions.previewActive = dimensionsActive;
+      viewer.IFC.unPrepickIfcItems();
+      window.onmousemove = dimensionsActive ?
+        null :
+        viewer.IFC.prePickIfcItem;
+
+      window.onmousedown = () => {
+        viewer.dimensions.create();
+      };
+    } else {
+      dimensionsActive = false;
+      viewer.dimensions.active = dimensionsActive;
+      viewer.dimensions.previewActive = dimensionsActive;
+      viewer.IFC.unpickIfcItems();
+    }
+
+    window.onkeydown = (event) => {
+      if (event.code === 'Escape') {
+        viewer.dimensions.cancelDrawing();
+      }
+      if (event.code === 'Delete' || event.code === 'Backspace' || event.code === 'keyD') {
+        setShowMeasure(false);
+        viewer.dimensions.deleteAll();
+      }
+    };
+  }
 
   const handleShowSpatialStructure = () => {
     setShowSpatialStructure(!showSpatialStructure);
@@ -297,6 +336,16 @@ const IfcRenderer = () => {
             <Fab
               size="small"
               className={classes.fab}
+              onClick={handleMeasure}
+            >
+              <StraightenIcon />
+            </Fab>
+
+          </Grid>
+          <Grid item xs={12}>
+            <Fab
+              size="small"
+              className={classes.fab}
               onClick={handleShowSpatialStructure}
             >
               <AccountTreeIcon />
@@ -337,7 +386,7 @@ const IfcRenderer = () => {
         open={isLoading}
       >
         <CircularProgress color='inherit' />
-        {`${percentageLoading} %`}
+        {/* {`${percentageLoading} %`} */}
       </Backdrop>
 
     </>
